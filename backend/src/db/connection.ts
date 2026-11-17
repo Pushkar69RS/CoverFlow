@@ -44,7 +44,30 @@ class DatabaseManager {
   }
 
   public async init(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized && (this.pool || this.pglite)) return;
+
+    const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+
+    if (isTest) {
+      if (!this.pglite) {
+        this.pglite = new PGlite();
+        this.isPgLiteMode = true;
+      }
+      this.initialized = true;
+
+      // Auto-migrate if newly initialized in-memory database
+      try {
+        const check = await this.pglite.query(`SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1;`);
+        if (check.rows.length === 0) {
+          const { runMigrations } = await import('./migrate');
+          await runMigrations();
+        }
+      } catch {
+        const { runMigrations } = await import('./migrate');
+        await runMigrations();
+      }
+      return;
+    }
 
     // Check if Postgres is reachable
     const pgSuccess = await this.tryPostgresConnection();
@@ -135,10 +158,12 @@ class DatabaseManager {
 
   public async close(): Promise<void> {
     if (this.pool) {
-      await this.pool.end();
+      await this.pool.end().catch(() => {});
+      this.pool = null;
     }
     if (this.pglite) {
-      await this.pglite.close();
+      await this.pglite.close().catch(() => {});
+      this.pglite = null;
     }
     this.initialized = false;
   }

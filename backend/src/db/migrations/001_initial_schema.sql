@@ -4,6 +4,8 @@
 -- 2. No Stock Oversubscription (check_stock_guard + FOR UPDATE)
 -- 3. No Double Technician Assignments (Partial unique index on active states)
 
+CREATE EXTENSION IF NOT EXISTS plpgsql;
+
 -- Branches
 CREATE TABLE IF NOT EXISTS branches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
